@@ -25,6 +25,7 @@ func deleteSubDirs(dir *Dir) {
 	for _, sd := range dir.SubDirs {
 		deleteSubDirs(sd)			
 	}
+	dir.SubDirs = [:0]
 	dir = nil
 }
 
@@ -60,6 +61,24 @@ func findLevelDuplicate(dlev map[int64]map[*Dir]struct{}){
 		} 	
 	}
 } 
+
+func InsertToDataByLevel(dir *Dir) {
+	if dir.ReversedLevel >= len(DataByLevel) {
+		for i:=len(DataByLevel); i<=dir.ReversedLevel; i++ {
+			DataByLevel = append(DataByLevel, map[int64]map[*Dir]struct{}{})
+		}
+	}
+	if _, exists := DataByLevel[dir.ReversedLevel][dir.TotalSize]; !exists {
+		DataByLevel[dir.ReversedLevel][dir.TotalSize] = map[*Dir]struct{}{&dir:struct{}{}}
+	} else {
+		//duplicate dir - actually
+		DataByLevel[dir.ReversedLevel][dir.TotalSize][&dir] = struct{}{}
+	}
+}
+
+func DeleteFromDataByLevel(dir *Dir) {
+	delete(DataByLevel[dir.ReversedLevel][dir.TotalSize], &dir)
+}
 
 func listDir(dirPath string) (*Dir, int, int64) {
 	//fmt.Printf(">>> %s\n", dirPath)
@@ -97,17 +116,7 @@ func listDir(dirPath string) (*Dir, int, int64) {
 	      }
 	}
 
-	if dir.ReversedLevel >= len(DataByLevel) {
-		for i:=len(DataByLevel); i<=dir.ReversedLevel; i++ {
-			DataByLevel = append(DataByLevel, map[int64]map[*Dir]struct{}{})
-		}
-	}
-	if _, exists := DataByLevel[dir.ReversedLevel][dir.TotalSize]; !exists {
-		DataByLevel[dir.ReversedLevel][dir.TotalSize] = map[*Dir]struct{}{&dir:struct{}{}}
-	} else {
-		//duplicate dir - actually
-		DataByLevel[dir.ReversedLevel][dir.TotalSize][&dir] = struct{}{}
-	}
+	InsertToDataByLevel(dir)
 
 	//fmt.Printf("<<< %s: %+v\n", dirPath, dir)
 	return &dir, dir.ReversedLevel+1, dir.TotalSize	
