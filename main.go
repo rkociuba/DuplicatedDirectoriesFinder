@@ -5,6 +5,7 @@ import (
     "io/ioutil"
     "log"
     "path"
+    "os"
 )
 
 type DataByLevelType []map[int64]map[*Dir]struct{}
@@ -18,21 +19,22 @@ type Dir struct {
 	FileCount  int
 	ReversedLevel int
 	TotalSize int64
-	Duplicated bool
+	HighestOriginal int 
 }
 
 func deleteSubDirs(dir *Dir) {
 	for _, sd := range dir.SubDirs {
 		deleteSubDirs(sd)			
 	}
-	dir.SubDirs = [:0]
+	dir.SubDirs = []*Dir{}
+	DeleteFromDataByLevel(dir)
 	dir = nil
 }
 
-func markSubDirsDuplicated(dir *Dir) {
-	dir.Duplicated = true
+func markSubDirsHighestOriginal(dir *Dir, level int) {
+	dir.HighestOriginal = level
 	for _, sd := range dir.SubDirs {
-		markSubDirsDuplicated(sd)			
+		markSubDirsHighestOriginal(sd, level)			
 	}
 }
 
@@ -47,14 +49,25 @@ func absPath(dir *Dir) string {
 func findLevelDuplicate(dlev map[int64]map[*Dir]struct{}){
 	for _, pdirs := range dlev {
 		if len(pdirs) > 1 {
+
+			// find if one of (or more) dirs does is not subtree (duplicate tree) of bigger three *
+			highest := -1
+			for d, _ := range pdirs {
+				//find highest original
+				if highest > d.HighestOriginal {
+					highest = d.HighestOriginal
+				}
+			}
+
 			i := 0
 			for d, _ := range pdirs {
-				fmt.Printf("%d: Duplicate Found: %s: (%+v)\n", i, absPath(d), d)	
-				if i == 0 {
-					markSubDirsDuplicated(d)
+				if i == 0 && highest == -1 {
+					// leave it only if its original (other words - mark one of idenitacl dirs - original)
+					markSubDirsHighestOriginal(d, d.ReversedLevel)
 				} else {
 					deleteSubDirs(d)
 				}
+				fmt.Printf("%d: Duplicate Found: %s: (%+v)\n", i, absPath(d), d)	
 				i++
 			}
 			fmt.Println("")	
@@ -69,22 +82,23 @@ func InsertToDataByLevel(dir *Dir) {
 		}
 	}
 	if _, exists := DataByLevel[dir.ReversedLevel][dir.TotalSize]; !exists {
-		DataByLevel[dir.ReversedLevel][dir.TotalSize] = map[*Dir]struct{}{&dir:struct{}{}}
+		DataByLevel[dir.ReversedLevel][dir.TotalSize] = map[*Dir]struct{}{dir:struct{}{}}
 	} else {
 		//duplicate dir - actually
-		DataByLevel[dir.ReversedLevel][dir.TotalSize][&dir] = struct{}{}
+		DataByLevel[dir.ReversedLevel][dir.TotalSize][dir] = struct{}{}
 	}
 }
 
 func DeleteFromDataByLevel(dir *Dir) {
-	delete(DataByLevel[dir.ReversedLevel][dir.TotalSize], &dir)
+	delete(DataByLevel[dir.ReversedLevel][dir.TotalSize], dir)
 }
 
 func listDir(dirPath string) (*Dir, int, int64) {
 	//fmt.Printf(">>> %s\n", dirPath)
 	files, err := ioutil.ReadDir(dirPath)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("ERROR: %s\n", err)
+		return nil, 0, 0
 	}
 
 	if len(files) == 0 {
@@ -96,6 +110,7 @@ func listDir(dirPath string) (*Dir, int, int64) {
 	dir := Dir{
 		Name: path.Base(dirPath),
 		SubDirs: []*Dir{}, 
+		HighestOriginal: -1,
 	}
 	Dirs++
 	for _, f := range files {
@@ -116,24 +131,28 @@ func listDir(dirPath string) (*Dir, int, int64) {
 	      }
 	}
 
-	InsertToDataByLevel(dir)
+	InsertToDataByLevel(&dir)
 
 	//fmt.Printf("<<< %s: %+v\n", dirPath, dir)
 	return &dir, dir.ReversedLevel+1, dir.TotalSize	
 }
 
 func main() {
-	//FirstDir, _, _:= listDir("./dir")	
-	listDir("/media/rkociuba/500")	
-	//_, _, _= listDir("./dir")	
+	listDir(os.Args[1])
+	//listDir("/media/rkociuba/500")
+	//listDir("d:/")
+	//listDir("./dir")	
+
 	fmt.Printf("|LEVELS: %+v|\n", len(DataByLevel))
 	fmt.Printf("|DIRS: %d|\n", Dirs)
-	//fmt.Println(FirstDir)
-	//fmt.Printf("|%+v|", DataByLevel)
+	//fmt.Printf("|%+v|\n", DataByLevel)
 
-	//for i:= len(DataByLevel)-1; i >= 0; i-- {
-	for i:= len(DataByLevel)-1; i >= len(DataByLevel)-10; i-- {
+	for i:= len(DataByLevel)-1; i >= 0; i-- {
+	//for i:= len(DataByLevel)-1; i >= len(DataByLevel)-10; i-- {
 		findLevelDuplicate(DataByLevel[i])	
+		var a int
+		fmt.Printf("LEV: %d\n", i)
+    		fmt.Scanf("%d", &a)
 	}
 }
 
