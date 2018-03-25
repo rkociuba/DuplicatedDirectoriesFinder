@@ -46,17 +46,48 @@ func absPath(dir *Dir) string {
 	}
 }
 
+type levelDup struct {
+	level int
+	duplicates string
+}
+
+type duplicate struct {
+	trunk string
+	levelDups map[int][]levelDup
+}
+
+var dups map[*Dir]duplicate //map: trunk-duplicates
+
+func findHighestRoot(d *Dir) *Dir{
+	for {
+		if d.ParentDir == nil || p.HighestOriginal != -1 {
+			return dir
+		}
+		d = d.ParentDir
+	}
+}
+
 func findLevelDuplicate(dlev map[int64]map[*Dir]struct{}){
 	for _, pdirs := range dlev {
 		if len(pdirs) > 1 {
-
-			// find if one of (or more) dirs does is not subtree (duplicate tree) of bigger three *
+			// checik  if  one of (or more) dirs is subtree (duplicate tree) of bigger three *
 			highest := -1
+			pHihgst := nil
 			for d, _ := range pdirs {
 				//find highest original
 				if highest > d.HighestOriginal {
 					highest = d.HighestOriginal
+					pHighest = d
 				}
+			}
+
+			if pHighest == nil {
+				//no trunk - this duplicate set is not subset of biggest duplicate set
+				//choose new trunk
+				trunk = pdirs[0] //TODO: for now 
+				dups[trunk] = duplicate{trunk: absPath(dir)}
+			} else {
+				trunk = findHighestRoot(pHighest)		
 			}
 
 			i := 0
@@ -70,6 +101,9 @@ func findLevelDuplicate(dlev map[int64]map[*Dir]struct{}){
 				fmt.Printf("%d: Duplicate Found: %s: (%+v)\n", i, absPath(d), d)	
 				i++
 			}
+
+			dups = append(dups, duplicate)
+
 			fmt.Println("")	
 		} 	
 	}
