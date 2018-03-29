@@ -38,6 +38,13 @@ func markSubDirsHighestOriginal(dir *Dir, level int) {
 	}
 }
 
+func printSubDirs(dir *Dir) {
+	fmt.Printf(" %+v\n", dir)
+	for _, sd := range dir.SubDirs {
+		printSubDirs(sd)					
+	}
+}
+
 func absPath(dir *Dir) string {
 	if dir.ParentDir == nil {
 		return ""
@@ -46,22 +53,18 @@ func absPath(dir *Dir) string {
 	}
 }
 
-type levelDup struct {
-	level int
-	duplicates string
-}
 
 type duplicate struct {
-	trunk string
-	levelDups map[int][]levelDup
+	trunk *Dir
+	subDup map[int][]*Dir
 }
 
-var dups map[*Dir]duplicate //map: trunk-duplicates
+var dups = map[*Dir]duplicate{} //map: trunk-duplicates
 
 func findHighestRoot(d *Dir) *Dir{
 	for {
-		if d.ParentDir == nil || p.HighestOriginal != -1 {
-			return dir
+		if d.ParentDir == nil || d.ParentDir.HighestOriginal == -1 {
+			return d
 		}
 		d = d.ParentDir
 	}
@@ -72,37 +75,41 @@ func findLevelDuplicate(dlev map[int64]map[*Dir]struct{}){
 		if len(pdirs) > 1 {
 			// checik  if  one of (or more) dirs is subtree (duplicate tree) of bigger three *
 			highest := -1
-			pHihgst := nil
-			for d, _ := range pdirs {
+			var pHighest, d *Dir = nil, nil
+			for d, _ = range pdirs {
 				//find highest original
-				if highest > d.HighestOriginal {
+				if d.HighestOriginal > highest{
 					highest = d.HighestOriginal
 					pHighest = d
 				}
 			}
 
+			var trunk *Dir 
 			if pHighest == nil {
 				//no trunk - this duplicate set is not subset of biggest duplicate set
-				//choose new trunk
-				trunk = pdirs[0] //TODO: for now 
-				dups[trunk] = duplicate{trunk: absPath(dir)}
+				//select new trunk
+				trunk = d //TODO: whichever for now
+				dups[trunk] = duplicate{trunk: trunk, subDup: map[int][]*Dir{}}
+				markSubDirsHighestOriginal(trunk, trunk.ReversedLevel)
+				fmt.Printf("NEW TRUNK: %s (%+v)\n", absPath(trunk), d)
 			} else {
 				trunk = findHighestRoot(pHighest)		
+				fmt.Printf("OLD TRUNK: %s\n", absPath(trunk))
 			}
 
-			i := 0
+			trunkOneWildcard := true //to prevent marking and potentially remove all duplicates from trunk (remove totally all)
 			for d, _ := range pdirs {
-				if i == 0 && highest == -1 {
-					// leave it only if its original (other words - mark one of idenitacl dirs - original)
-					markSubDirsHighestOriginal(d, d.ReversedLevel)
-				} else {
-					deleteSubDirs(d)
+				if d.HighestOriginal != -1 && trunkOneWildcard {
+					trunkOneWildcard = false
+					continue
 				}
-				fmt.Printf("%d: Duplicate Found: %s: (%+v)\n", i, absPath(d), d)	
-				i++
-			}
+				fmt.Printf(" Duplicate: %d %s: (%+v)\n", d.ReversedLevel, absPath(d), d)	
+				//
 
-			dups = append(dups, duplicate)
+				dups[trunk].subDup[d.ReversedLevel] = append(dups[trunk].subDup[d.ReversedLevel], d)
+				//this is duplicate or sub-duplicate 
+				deleteSubDirs(d)
+			}
 
 			fmt.Println("")	
 		} 	
