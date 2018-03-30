@@ -6,6 +6,7 @@ import (
     "log"
     "path"
     "os"
+    "sort"
 )
 
 type DataByLevelType []map[int64]map[*Dir]struct{}
@@ -53,13 +54,29 @@ func absPath(dir *Dir) string {
 	}
 }
 
+//results: trunk to duplicates(i.e. level to slice of duplicates)
+var dups = map[*Dir][][]*Dir{}
 
-type duplicate struct {
-	trunk *Dir
-	subDup map[int][]*Dir
+type Pair struct {
+	Key *Dir
+	Value [][]*Dir
+}
+type PairList []Pair
+func (p PairList) Len() int { return len(p) }
+func (p PairList) Less(i, j int) bool { return p[i].Key.ReversedLevel < p[j].Key.ReversedLevel }
+func (p PairList) Swap(i, j int){ p[i], p[j] = p[j], p[i] }
+
+func SortByLevel(input map[*Dir][][]*Dir) PairList{
+	pl := make(PairList, len(input))
+	i := 0
+	for k, v := range input {
+		pl[i] = Pair{k, v}
+		i++
+  	}
+  	sort.Sort(sort.Reverse(pl))
+  	return pl
 }
 
-var dups = map[*Dir]duplicate{} //map: trunk-duplicates
 
 func findHighestRoot(d *Dir) *Dir{
 	for {
@@ -89,7 +106,7 @@ func findLevelDuplicate(dlev map[int64]map[*Dir]struct{}){
 				//no trunk - this duplicate set is not subset of biggest duplicate set
 				//select new trunk
 				trunk = d //TODO: whichever for now
-				dups[trunk] = duplicate{trunk: trunk, subDup: map[int][]*Dir{}}
+				dups[trunk] = [][]*Dir{}
 				markSubDirsHighestOriginal(trunk, trunk.ReversedLevel)
 				fmt.Printf("NEW TRUNK: %s (%+v)\n", absPath(trunk), d)
 			} else {
@@ -98,6 +115,7 @@ func findLevelDuplicate(dlev map[int64]map[*Dir]struct{}){
 			}
 
 			trunkOneWildcard := true //to prevent marking and potentially remove all duplicates from trunk (remove totally all)
+			group := []*Dir{}
 			for d, _ := range pdirs {
 				if d.HighestOriginal != -1 && trunkOneWildcard {
 					trunkOneWildcard = false
@@ -105,11 +123,12 @@ func findLevelDuplicate(dlev map[int64]map[*Dir]struct{}){
 				}
 				fmt.Printf(" Duplicate: %d %s: (%+v)\n", d.ReversedLevel, absPath(d), d)	
 				//
-
-				dups[trunk].subDup[d.ReversedLevel] = append(dups[trunk].subDup[d.ReversedLevel], d)
+				
+				group = append(group, d)
 				//this is duplicate or sub-duplicate 
 				deleteSubDirs(d)
 			}
+			dups[trunk] = append(dups[trunk], group)
 
 			fmt.Println("")	
 		} 	
@@ -178,6 +197,7 @@ func listDir(dirPath string) (*Dir, int, int64) {
 	return &dir, dir.ReversedLevel+1, dir.TotalSize	
 }
 
+
 func main() {
 	listDir(os.Args[1])
 	//listDir("/media/rkociuba/500")
@@ -189,11 +209,21 @@ func main() {
 	//fmt.Printf("|%+v|\n", DataByLevel)
 
 	for i:= len(DataByLevel)-1; i >= 0; i-- {
-	//for i:= len(DataByLevel)-1; i >= len(DataByLevel)-10; i-- {
+	//for i:= len(DataByLevel)-1; i >= len(DataByLevel)-2; i-- {
 		findLevelDuplicate(DataByLevel[i])	
 		var a int
 		fmt.Printf("LEV: %d\n", i)
     		fmt.Scanf("%d", &a)
 	}
+
+	for _, v := range SortByLevel(dups) {
+		fmt.Printf("%s\n", absPath(v.Key))
+		for _, vv := range(v.Value) {
+			fmt.Printf("  Duplicate Group: %d\n", vv[0].ReversedLevel)
+			for _, vvv := range(vv) {
+				fmt.Printf("    %s\n", absPath(vvv))
+			}
+		}
+	}	
 }
 
